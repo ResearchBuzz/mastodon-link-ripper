@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  <title>The Mastodon Link Ripper</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+#results {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+#results div {
+  width: 300px;
+  margin: 10px;
+  padding: 20px;
+  border: 1px solid #ddd;
+}
+
+#results h3 {
+  margin-top: 0;
+}
+
+#results p {
+  line-height: 1.6;
+}
+
+#results a {
+  display: block;
+  color: #0077cc;
+  text-decoration: none;
+  margin-top: 10px;
+}
+
+h3 {
+  text-align: center; 
+}
+
+#splain {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: normal;
+  line-height: 1.5
+}
+
+form {
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: left;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+label {
+  font-weight: bold;
+  margin-bottom: 8px;
+  display: block;
+}
+
+input, button {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #777;
+  font-size: 16px;  
+}
+
+button {
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+</style>   
+
+  </head>
+  <body>
+
+<h3>Mastodon Link Ripper</h3>
+<div id="splain">The MLR is a quick way to pull all the links from Mastodon instance timelines. Enter a list of Mastodon instances separated by commas (just commas, no spaces.) If you want to filter out links based on certain keywords,
+enter them in the Blacklisted Words form separated by commas. Enter keywords in all-lowercase, even if they would not normally be lowercase (proper names, etc). if you don't want to filter any words out, leave the nonsense stopword as it is.<br><br>
+  <div>
+  
+  <label>Instances (comma separated):</label>
+<input id="instancesInput" /><br><br>
+
+<label>Blacklisted Words (comma separated):</label>  
+<input id="blacklistInput" / value="sgewatetawet">
+
+<button id="fetchButton">Fetch Timelines</button>
+
+   <div id="results"></div>
+
+    
+<script>
+// Setting everything off
+
+fetchButton.addEventListener('click', () => {
+
+  const instancesInput = document.getElementById('instancesInput').value;
+  const blacklistInput = document.getElementById('blacklistInput').value;   
+
+  const instances = instancesInput.split(',');
+  const blacklist = blacklistInput.split(',');
+
+  instances.forEach(inst => inst.trim());
+  blacklist.forEach(word => word.trim());
+
+  window.instances = instances;
+  window.blacklist = blacklist;
+
+  console.log('Instances:', instances);
+  console.log('Blacklist:', blacklist);
+  
+  main()
+});
+
+// Timeline fetch function
+
+async function getLocalTimeline(instance) {
+
+  const url = `https://${instance}/api/v1/timelines/public?local=true&limit=40`;
+  
+  const res = await fetch(url);
+  const timeline = await res.json();
+
+  return timeline;
+
+}
+
+// Putting the timelines together and filtering them 
+
+async function main() {
+
+  const timelines = [];
+
+  for (const instance of instances) {
+
+    try {
+      console.log(`Fetching timeline for ${instance}`);
+      const timeline = await getLocalTimeline(instance);
+      timelines.push(timeline);
+    } catch (err) {
+      console.error(`Error fetching ${instance} timeline`, err);
+    }
+
+  }
+ 
+  const allPosts = timelines.flat();
+
+  const posts = { nonBuffer: [] };
+
+  for (const post of allPosts) {
+    posts.nonBuffer.push(post);
+  }
+
+// The default setting is to discard all posts over 48 hours old. You can change that 48 to whatever 
+// you want, but if it's a low number you'll have fewer posts. If you don't want time to be a consideration set it to 
+// a high number like 999 hours. 
+
+  const twoDaysAgo = Date.now() - (48 * 60 * 60 * 1000);
+
+  posts.nonBuffer = posts.nonBuffer.filter(post => {
+  
+    const postDate = new Date(post.created_at).getTime();
+    const isRecent = postDate > twoDaysAgo;
+
+    const hasCard = post.card !== null;
+
+    let hasBlacklistedWords = false;
+
+   if (hasCard) {
+
+  const description = post.card.description.toLowerCase();
+  const title = post.card.title.toLowerCase();
+
+  hasBlacklistedWords = blacklist.some(word => {
+    return description.includes(word) || title.includes(word); 
+  });
+
+}
+
+return isRecent && hasCard && !hasBlacklistedWords;
+
+  });
+
+  const uniquePosts = new Set();
+
+  const resultsDiv = document.getElementById('results');
+
+  resultsDiv.innerHTML = " "; 
+
+  posts.nonBuffer.forEach(post => {
+
+    if (uniquePosts.has(post.card.title)) {
+      return; 
+    }
+
+    uniquePosts.add(post.card.title);
+
+    const cardDiv = document.createElement('div');
+
+    const title = document.createElement('h3');
+    title.textContent = post.card.title;
+
+    const description = document.createElement('p');
+    description.textContent = post.card.description;
+
+    const link = document.createElement('a');
+    link.href = post.card.url;
+    
+    if (post.card.published_at !== null && post.card.published_at !== undefined) {
+      link.textContent = post.card.published_at.toString();
+    } else {
+      link.textContent = "Read More"
+    }
+
+    link.target = "_blank";
+
+    cardDiv.appendChild(title);
+    cardDiv.appendChild(description);
+    cardDiv.appendChild(link);
+
+    resultsDiv.appendChild(cardDiv);
+
+  });
+ 
+
+}
+</script>
+
+
+  </body>
+</html>
