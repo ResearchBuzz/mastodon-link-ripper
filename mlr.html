@@ -135,6 +135,9 @@ async function getLocalTimeline(instance) {
 
 async function main() {
 
+fetchButton.disabled = true; 
+fetchButton.textContent = 'Loading...';
+
   const timelines = [];
 
   for (const instance of instances) {
@@ -220,11 +223,16 @@ return isRecent && hasCard && !hasBlacklistedWords;
 
     link.target = "_blank";
 
+
+
     cardDiv.appendChild(title);
     cardDiv.appendChild(description);
     cardDiv.appendChild(link);
 
     resultsDiv.appendChild(cardDiv);
+
+fetchButton.disabled = false;
+fetchButton.textContent = 'Fetch Timelines';
 
   });
  
